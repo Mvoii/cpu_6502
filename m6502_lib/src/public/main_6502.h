@@ -1,3 +1,7 @@
+#ifndef MAIN_6502_H
+#define MAIN_6502_H
+
+#pragma once
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -27,6 +31,14 @@ struct Mem
 		// assert here teh address is < MAX_MEM
 		return Data[Address];
 	}
+
+    /** write 2 bytes */
+    void WriteWord(Word Value, u32 Address, u32 &Cycles)
+    {
+        Data[Address] = Value & 0xFF;
+        Data[Address] = (Value >> 8);
+        Cycles -= 2;
+    }
 
 	/**Validating the test */
 	Byte &operator[](u32 Address)
@@ -58,6 +70,8 @@ struct CPU
 		SP = 0x0100;
 		C = Z = I = B = V = N = D = 0;
 		A = X = Y = 0;
+
+        memory.Init_mem();
 	}
 
 	Byte FetchByte(u32 &Cycles, Mem &memory)
@@ -68,6 +82,21 @@ struct CPU
 
 		return Data;
 	}
+
+    Word FetchWord(u32 &Cycles, Mem &memory)
+    {
+        // is a little endian
+        Word Data = memory[PC];
+        PC++;
+
+        Data |= (memory[PC] << 8);
+        PC++;
+
+        Cycles += 2;
+
+
+        return Data;
+    }
 
 	Byte ReadByte(u32 &Cycles, Byte Addr, Mem &memory)
 	{
@@ -81,7 +110,9 @@ struct CPU
 	static constexpr Byte
 		INS_LDA_IM = 0xA9,
 		INS_LDA_ZP = 0xA5,
-		INS_LDA_ZPX = 0xB5;
+		INS_LDA_ZPX = 0xB5,
+
+        INS_JSR = 0x20;
 
 	void LDASetStatus()
 	{
@@ -125,6 +156,16 @@ struct CPU
 				}
 				break;
 
+                case INS_JSR:
+                {
+                    Word SubAddr = FetchWord(Cycles, memory);
+                    memory.WriteWord(PC - 1, SP, Cycles);
+                    SP += 2;
+                    PC = SubAddr;
+                    Cycles--;
+                }
+                break;
+
 				default:
 				{
 					printf("Instruction not handled %d", Ins);
@@ -136,16 +177,4 @@ struct CPU
 };
 
 
-int main(void)
-{
-	Mem mem;
-	CPU cpu;
-	cpu.Reset(mem);
-	mem[0xFFFC] = CPU::INS_LDA_ZP;
-	mem[0xFFFD] = 0x42;
-	mem[0x0042] = 0x84;
-	cpu.Exec(3, mem);
-
-	return 0;
-}
-
+#endif  /* MAIN_6502_H*/
